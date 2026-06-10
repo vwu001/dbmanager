@@ -30,6 +30,7 @@ assert_contains "$OUT" "CMD=$FIX/gw43/policycenter/gwb studio" "builds correct l
 # Ultimate edition -> UT
 run gw43 policycenter --ultimate
 assert_contains "$OUT" "IDEA_HOME=/UT" "--ultimate uses Ultimate IDEA_HOME"
+assert_status "$STATUS" 0 "--ultimate launches successfully"
 
 # Excluded snapshot-only root
 run gw policycenter
@@ -48,5 +49,10 @@ assert_contains "$OUT" "not found" "missing path message"
 run gw43
 assert_status "$STATUS" 1 "missing center arg shows usage"
 assert_contains "$OUT" "Usage:" "usage message printed"
+
+# Unknown third option
+run gw43 policycenter --bogus
+assert_status "$STATUS" 1 "unknown option is rejected"
+assert_contains "$OUT" "unknown option" "unknown-option message printed"
 
 done_tests
