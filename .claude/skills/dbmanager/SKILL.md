@@ -70,6 +70,14 @@ yourself; STOP and ask the user to paste their own keys where that doc marks
 `<YOUR_...>` / `REPLACE_ME` (credentials, DB password, integration URLs). Never invent or
 commit secret values.
 
+### Check required env vars
+`./localconfig-checkenv.sh` reports which suite env vars are set vs missing (values shown
+for non-secret vars, secrets masked). `[set]` vars (`JAVA_HOME`, `IDEA_HOME`,
+`GW_PROPERTY_SERVICE_DISABLED=true`, `GW_TENANT=bamboo`) the skill can help set;
+`DEPLOYMENT_ID` is the one the user changes routinely (swap the env segment, e.g.
+`qa3`→`dev2`); the remaining `[user]` vars (IG/Okta secrets, etc.) the user must obtain and
+export — never store or commit them. Names/tags live in `localconfig/required-env.txt`.
+
 ### Back up (local only, never committed)
 `./localconfig-backup.sh <root> <center>` → captures the modified localconfig (incl. the
 real `credentials.xml`) into gitignored `localconfig/backups/<root>/<center>/`. Use this
