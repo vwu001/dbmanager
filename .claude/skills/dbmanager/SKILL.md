@@ -71,12 +71,14 @@ yourself; STOP and ask the user to paste their own keys where that doc marks
 commit secret values.
 
 ### Check required env vars
-`./localconfig-checkenv.sh` reports which suite env vars are set vs missing (values shown
-for non-secret vars, secrets masked). `[set]` vars (`JAVA_HOME`, `IDEA_HOME`,
-`GW_PROPERTY_SERVICE_DISABLED=true`, `GW_TENANT=bamboo`) the skill can help set;
-`DEPLOYMENT_ID` is the one the user changes routinely (swap the env segment, e.g.
-`qa3`→`dev2`); the remaining `[user]` vars (IG/Okta secrets, etc.) the user must obtain and
-export — never store or commit them. Names/tags live in `localconfig/required-env.txt`.
+`./localconfig-checkenv.sh` reports which suite env vars are set vs missing. It **never
+prints values** — report only set/missing; never echo env values (secret or not) in chat.
+Required `[set]` vars (`JAVA_HOME`, `IDEA_HOME`, `GW_PROPERTY_SERVICE_DISABLED=true`,
+`GW_TENANT=bamboo`) the skill can help set; `DEPLOYMENT_ID` (`[req]`) the user sets and
+changes routinely (swap the env segment, e.g. `qa3`→`dev2`) in their own shell. The
+`[opt]`/`[opt-secret]` vars (IG/Okta, etc.) are optional — only needed to hit live
+integration servers; otherwise the user mocks those integrations. Never store or commit
+any of these values. Names/tags live in `localconfig/required-env.txt`.
 
 ### Back up (local only, never committed)
 `./localconfig-backup.sh <root> <center>` → captures the modified localconfig (incl. the

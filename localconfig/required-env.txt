@@ -1,28 +1,37 @@
-# Environment variables the Guidewire suite needs at build/run time.
-# This file lists NAMES ONLY — never values (some are secrets).
+# Environment variables for the Guidewire suite. NAMES ONLY — never values (some secret).
 #
 # Tags:
-#   [set]       - non-sensitive; the skill can help set these (known/derivable values)
-#   [user-show] - user-set, NOT secret; checker shows its value so you can verify/change it
-#   [user]      - SECRET or account-specific; YOU must obtain & export. Value never shown.
+#   [set]        required, non-sensitive — skill can help set (known/derivable values)
+#   [req]        required — you set it yourself (e.g. DEPLOYMENT_ID)
+#   [opt]        optional — only needed to hit LIVE integration servers (else mock them)
+#   [opt-secret] optional AND secret — only for live integrations
 #
-# DEPLOYMENT_ID is the one devs change routinely: swap the environment segment (e.g. the
-# "qa3" in ...:dev:qa3:/deployment/... ) to whatever env you want to mirror (dev2, etc.).
+# The checker NEVER prints values (they stay masked in chat); it only reports set / missing.
 #
-# (Separately, run the server in the local environment via -Denv=local — that is a JVM
-#  property set in the gwb command / Studio run config, not an exported env var.)
+# DEPLOYMENT_ID: swap the environment segment (e.g. the "qa3" in ...:dev:qa3:/deployment/...)
+# to whatever env you want to mirror (dev2, etc.). Check/change its value in your own shell.
+#
+# The optional vars are NOT required to get the suite running — set the integrations to
+# mock if you don't need live servers. Provide them only to hit live integrations. Never
+# store or commit their values.
+#
+# (Run the server in the local env via -Denv=local — a JVM property in the gwb command /
+#  Studio run config, not an exported env var.)
 
+# --- required ---
 JAVA_HOME                     [set]
 IDEA_HOME                     [set]
 GW_PROPERTY_SERVICE_DISABLED  [set]
 GW_TENANT                     [set]
-DEPLOYMENT_ID                 [user-show]
-JBR_DIR                       [user]
-IG_ARTIFACT_REPO_USERNAME     [user]
-IG_ARTIFACT_REPO_PASSWORD     [user]
-IG_EDGE_NODE_USERNAME         [user]
-IG_EDGE_NODE_PASSWORD         [user]
-OKTA_CLIENT_ID                [user]
-OKTA_CLIENT_SECRET            [user]
-OKTA_AUTH_SERVER_URL          [user]
-OKTA_SCOPE                    [user]
+DEPLOYMENT_ID                 [req]
+
+# --- optional: only to hit live integration servers (otherwise mock) ---
+JBR_DIR                       [opt]
+IG_ARTIFACT_REPO_USERNAME     [opt]
+IG_ARTIFACT_REPO_PASSWORD     [opt-secret]
+IG_EDGE_NODE_USERNAME         [opt]
+IG_EDGE_NODE_PASSWORD         [opt-secret]
+OKTA_CLIENT_ID                [opt]
+OKTA_CLIENT_SECRET            [opt-secret]
+OKTA_AUTH_SERVER_URL          [opt]
+OKTA_SCOPE                    [opt]

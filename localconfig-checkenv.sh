@@ -1,6 +1,7 @@
 #!/bin/bash
 # Check whether the environment variables the Guidewire suite needs are set.
-# Reports SET / MISSING per variable. Shows values for non-secret vars; secrets are masked.
+# Reports set / missing per variable ONLY — never prints values (they stay masked in chat).
+# Required vars missing -> non-zero exit. Optional (live-integration) vars never fail.
 #
 # Usage: ./localconfig-checkenv.sh
 # Reads variable names + tags from localconfig/required-env.txt.
@@ -9,38 +10,35 @@ set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"
 LIST="${LC_ENV_LIST:-$DIR/localconfig/required-env.txt}"
 
-missing=0
+missing_required=0
 while IFS= read -r line; do
   case "$line" in ''|\#*) continue ;; esac
   name="${line%%[[:space:]]*}"
   case "$line" in
-    *"[user-show]"*) tag="user-show" ;;
-    *"[user]"*)      tag="user" ;;
-    *)               tag="set" ;;
+    *"[set]"*)        tag="set" ;;
+    *"[req]"*)        tag="req" ;;
+    *"[opt-secret]"*) tag="opt-secret" ;;
+    *"[opt]"*)        tag="opt" ;;
+    *)                tag="set" ;;
   esac
 
-  val="${!name:-}"
-  if [ -n "$val" ]; then
-    if [ "$tag" = "user" ]; then
-      printf '  SET      %-28s (hidden)\n' "$name"
-    else
-      printf '  SET      %-28s = %s\n' "$name" "$val"
-    fi
-  else
-    case "$tag" in
-      set)       hint="skill can help set" ;;
-      user-show) hint="you set this (e.g. DEPLOYMENT_ID env segment)" ;;
-      user)      hint="you must obtain & export" ;;
-    esac
-    printf '  MISSING  %-28s [%s]\n' "$name" "$hint"
-    missing=$((missing + 1))
+  if [ -n "${!name:-}" ]; then
+    printf '  SET       %s\n' "$name"
+    continue
   fi
+
+  case "$tag" in
+    set)        printf '  MISSING   %-28s (required — skill can help set)\n' "$name"; missing_required=$((missing_required + 1)) ;;
+    req)        printf '  MISSING   %-28s (required — you set this)\n' "$name"; missing_required=$((missing_required + 1)) ;;
+    opt)        printf '  optional  %-28s (live integrations; else mock)\n' "$name" ;;
+    opt-secret) printf '  optional  %-28s (live integrations, secret; else mock)\n' "$name" ;;
+  esac
 done < "$LIST"
 
 echo ""
-if [ "$missing" -eq 0 ]; then
-  echo "All required env vars are set."
+if [ "$missing_required" -eq 0 ]; then
+  echo "All REQUIRED env vars are set. Optional integration vars are only needed for live servers."
   exit 0
 fi
-echo "$missing missing. [set] = skill can help set; others you provide and export yourself."
+echo "$missing_required required env var(s) missing."
 exit 1
