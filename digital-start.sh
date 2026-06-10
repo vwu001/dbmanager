@@ -35,7 +35,7 @@ start_repo() {  # <repo> <port>
     return 0
   fi
   echo "Starting $repo on :$port ..."
-  ( cd "$d" && nohup npm start > "$LOG_DIR/$repo.log" 2>&1 & echo $! > "$LOG_DIR/$repo.pid" )
+  ( cd "$d" && nohup npm run start > "$LOG_DIR/$repo.log" 2>&1 & echo $! > "$LOG_DIR/$repo.pid" )
   echo "  log: $LOG_DIR/$repo.log   pid: $(cat "$LOG_DIR/$repo.pid" 2>/dev/null)"
 }
 

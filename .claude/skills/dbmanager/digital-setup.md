@@ -34,13 +34,30 @@ Point the service URLs at the local suite and the env being mirrored:
 ## 4. Install dependencies
 In each repo: `npm install` (uses `.npmrc` for the registry token).
 
-## 5. Start (correct order)
-The suite must be running first (PolicyCenter on :8180). Then:
-```
-./digital-start.sh
-```
-This starts **agentquotehome (:3001)** first, waits for it, then **agentexperience
-(:3000)**. Logs land in gitignored `digital/logs/`.
+## 5. Start & login (exact working procedure)
+
+**Prerequisite: PolicyCenter must already be started first** (suite running on :8180).
+
+1. Start the apps in order — **agentquotehome first, then agentexperience** — each with
+   `npm run start` (the `start` script = `jutro app:start`; there is no `dev` script).
+   Helper:
+   ```
+   ./digital-start.sh
+   ```
+   (starts agentquotehome :3001, waits, then agentexperience :3000; logs in `digital/logs/`).
+
+2. In a **regular browser window**, open **https://localhost:3001/**. Click **Advanced** →
+   proceed past the "your connection is not private" warning. It loads and then shows a
+   **400 error from Okta** — that is expected. **Leave this window open and do nothing with
+   it.**
+
+3. Open a separate **incognito window** and go to **https://localhost:3000/**
+   (agentexperience). Log in with the local test account:
+   - username: `<LOCAL_TEST_USERNAME>`
+   - password: `<LOCAL_TEST_PASSWORD>`
+
+   (Local-only test login — works only against a local environment, not a real secret.)
+   The app then loads and works.
 
 ## 6. Snapshot the working config
 Once it runs, back up so future checkouts are a one-step restore:

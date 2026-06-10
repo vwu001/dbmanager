@@ -114,7 +114,12 @@ the user to paste their `.npmrc` token and any internal/env URLs, then `npm inst
   from HEAD); paths in `digital/manifest.txt`. `<repo>` = `agentquotehome` | `agentexperience`.
 - `./digital-restore.sh <repo>` → copies the backup back. Errors if none exists.
 
-### Start (correct order — suite must be running first)
+### Start & login (correct order — PolicyCenter must be running first)
 `./digital-start.sh` warns if PolicyCenter (:8180) is down, then starts **agentquotehome
-(:3001)** first, waits for it, then **agentexperience (:3000)**. Apps run in the background;
-logs in gitignored `digital/logs/`. Never echo `.npmrc` tokens or `.env` secret values.
+(:3001)** first, waits for it, then **agentexperience (:3000)** (each via `npm run start`).
+Apps run in the background; logs in gitignored `digital/logs/`.
+
+The login is a specific two-window dance — walk the user through `digital-setup.md` §5:
+open https://localhost:3001/ in a regular window (Advanced → bypass cert; an Okta 400 is
+expected — leave it open), then open https://localhost:3000/ in an incognito window and log
+in. Never echo `.npmrc` tokens or `.env` secret values.
