@@ -36,8 +36,10 @@ Flow:
 4. Then run:
    - Full suite: `./restoregwsuitebydate.sh <user> <folder>/<date>`
    - Single DB: `./restore.sh <user> <folder>/<date>_<db>.sql <db>` (db = pcdb|bcdb|cmdb)
-5. Report success/failure from the script output. If a backup file is missing, report it
-   and do not continue.
+5. Report success/failure from the script output. The full-suite script restores each
+   DB independently and only prints `Backup file ... not found!` for a missing one — it
+   does NOT stop. So if any file is reported missing, warn the user the suite is now at
+   mismatched versions (some DBs restored, some not) and help them re-run or fix it.
 
 ## 4. Launch Studio
 
@@ -48,7 +50,7 @@ Run `./launchstudio.sh <root> <center> [--ultimate]`.
 - Add `--ultimate` only if the user asks for the Ultimate IDE; otherwise Community + Java 21
   are used by default.
 - To preview without launching, prefix with `DRY_RUN=1`.
-- If the script reports the path is not found, tell the user which `~/dev/bamboo/<root>/<center>`
-  directory is missing rather than retrying.
+- If the script reports `... gwb not found or not executable`, tell the user which
+  `~/dev/bamboo/<root>/<center>` directory (or its `gwb` binary) is missing rather than retrying.
 
 Version paths live in `launch-config.sh`; edit there if IntelliJ/Java versions change.
