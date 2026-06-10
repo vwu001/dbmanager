@@ -52,12 +52,12 @@ In each repo: `npm install` (uses `.npmrc` for the registry token).
    it.**
 
 3. Open a separate **incognito window** and go to **https://localhost:3000/**
-   (agentexperience). Log in with the local test account:
+   (agentexperience). Log in with your local test account:
    - username: `<LOCAL_TEST_USERNAME>`
    - password: `<LOCAL_TEST_PASSWORD>`
 
-   (Local-only test login — works only against a local environment, not a real secret.)
-   The app then loads and works.
+   (A local-only test login against a local environment. Ask the user for the values —
+   do not commit them.) The app then loads and works.
 
 ## 6. Snapshot the working config
 Once it runs, back up so future checkouts are a one-step restore:
