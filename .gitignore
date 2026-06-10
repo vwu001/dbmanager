@@ -1,3 +1,5 @@
 *.sql
 ignore
 localconfig/backups/
+digital/backups/
+digital/logs/

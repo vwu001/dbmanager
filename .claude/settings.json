@@ -5,7 +5,8 @@
       "Bash(./backupgwsuite.sh:*)",
       "Bash(./restore.sh:*)",
       "Bash(./restoregwsuitebydate.sh:*)",
-      "Bash(./launchstudio.sh:*)"
+      "Bash(./launchstudio.sh:*)",
+      "Edit(/.claude/skills/dbmanager/**)"
     ]
   }
 }

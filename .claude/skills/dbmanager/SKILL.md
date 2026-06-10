@@ -96,3 +96,25 @@ Secrets rule: the real `credentials.xml` lives ONLY in the suite and in gitignor
 `localconfig/backups/`. Never commit it. This is pure backup/restore — it does not touch
 the git index (no skip-worktree), so the user can still shelve/unshelve manually in their
 own repo when they choose.
+
+## 6. Digital UI (Jutro apps)
+
+Two Guidewire Jutro apps under `~/dev/bamboo/gw/` provide the agent UI against a running
+local suite: `agentquotehome` (:3001) and `agentexperience` (:3000, links to :3001). Each
+has local edits to `.env`, `.npmrc` (registry auth token — secret), and
+`src/config/config.json` (internal URLs). **No digital config is ever committed.**
+
+### Setup a fresh checkout (guided)
+Follow `digital-setup.md` (in this skill directory): apply the non-secret edits, STOP for
+the user to paste their `.npmrc` token and any internal/env URLs, then `npm install`.
+
+### Back up / restore (local only, never committed)
+- `./digital-backup.sh <repo>` → captures the modified `.env`/`.npmrc`/`config.json` into
+  gitignored `digital/backups/<repo>/`. Selection is git-diff-based (only files differing
+  from HEAD); paths in `digital/manifest.txt`. `<repo>` = `agentquotehome` | `agentexperience`.
+- `./digital-restore.sh <repo>` → copies the backup back. Errors if none exists.
+
+### Start (correct order — suite must be running first)
+`./digital-start.sh` warns if PolicyCenter (:8180) is down, then starts **agentquotehome
+(:3001)** first, waits for it, then **agentexperience (:3000)**. Apps run in the background;
+logs in gitignored `digital/logs/`. Never echo `.npmrc` tokens or `.env` secret values.

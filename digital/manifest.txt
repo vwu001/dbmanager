@@ -1,0 +1,11 @@
+# Digital UI config — git pathspecs relative to a repo root
+# (~/dev/bamboo/gw/<repo>). Backup captures the tracked files under these paths that
+# DIFFER from HEAD (your local-run edits) via: git diff --name-only HEAD -- <pathspecs>.
+#
+# These contain secrets (.npmrc auth token) and internal URLs (config.json) — they are
+# only ever copied to gitignored digital/backups/, never committed.
+#
+# Lines starting with # and blank lines are ignored.
+.env
+.npmrc
+src/config/config.json
