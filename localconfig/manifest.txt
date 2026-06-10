@@ -1,0 +1,15 @@
+# Localconfig git pathspecs, relative to a center root (~/dev/bamboo/<root>/<center>/).
+#
+# Backup captures the tracked files under these paths that DIFFER from HEAD (i.e. your
+# local-run edits) via: git diff --name-only HEAD -- <pathspecs>.
+# This deliberately ignores unmodified files and your code work (.gs, generated all.js),
+# and picks up only the .gwp registry files you actually changed.
+#
+# Lines starting with # and blank lines are ignored.
+modules/configuration/config/config.local.properties
+modules/configuration/config/database-config.xml
+modules/configuration/credentials.xml
+modules/configuration/config/plugin/registry
+
+# NOTE: RuntimeProperties.lexisnexis.xml (under etc/bamboo/runtimeproperties/local-dev) is
+# intentionally NOT managed here. See SKILL.md section 5 — it is set manually.

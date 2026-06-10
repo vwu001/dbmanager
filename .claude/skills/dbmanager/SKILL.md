@@ -54,3 +54,35 @@ Run `./launchstudio.sh <root> <center> [--ultimate]`.
   `~/dev/bamboo/<root>/<center>` directory (or its `gwb` binary) is missing rather than retrying.
 
 Version paths live in `launch-config.sh`; edit there if IntelliJ/Java versions change.
+
+## 5. Local config (localconfig)
+
+Each suite checkout needs local edits to tracked files to run with `-Denv=local`
+(`config.local.properties`, `database-config.xml`, `credentials.xml`, a few
+`plugin/registry/*.gwp`). These are the files the user otherwise shelves/unshelves.
+**No suite config is ever committed to this repo** — secrets and internal values live only
+in the user's suite and in gitignored backups.
+
+### Setup a fresh checkout (guided — no stored copies)
+When the user has no backup yet, WALK THEM THROUGH editing the base files by following
+`localconfig-setup.md` (in this skill directory) step by step. Apply the non-secret edits
+yourself; STOP and ask the user to paste their own keys where that doc marks
+`<YOUR_...>` / `REPLACE_ME` (credentials, DB password, integration URLs). Never invent or
+commit secret values.
+
+### Back up (local only, never committed)
+`./localconfig-backup.sh <root> <center>` → captures the modified localconfig (incl. the
+real `credentials.xml`) into gitignored `localconfig/backups/<root>/<center>/`. Use this
+before/after risky git work, or to snapshot a working setup. Selection is git-diff-based
+(only files differing from HEAD), so it ignores unmodified files and code work
+(`.gs`, `all.js`); paths come from `localconfig/manifest.txt`.
+
+### Restore
+`./localconfig-restore.sh <root> <center>` → copies the local backup back into the suite.
+Errors if no backup exists. After the first guided setup + backup, this is the fast path
+for future fresh checkouts.
+
+Secrets rule: the real `credentials.xml` lives ONLY in the suite and in gitignored
+`localconfig/backups/`. Never commit it. This is pure backup/restore — it does not touch
+the git index (no skip-worktree), so the user can still shelve/unshelve manually in their
+own repo when they choose.
