@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./listbackups.sh:*)",
+      "Bash(./backupgwsuite.sh:*)",
+      "Bash(./restore.sh:*)",
+      "Bash(./restoregwsuitebydate.sh:*)",
+      "Bash(./launchstudio.sh:*)"
+    ]
+  }
+}
