@@ -1,11 +1,23 @@
 # dbmanager
 
 Personal tooling to manage local Guidewire suite environments across multiple dev
-branches: back up / restore the local PostgreSQL databases (PolicyCenter, BillingCenter,
-ContactManager) and launch Studio with the correct IntelliJ + Java versions.
+branches:
+
+- **Databases** — back up / restore the local PostgreSQL databases (PolicyCenter,
+  BillingCenter, ContactManager).
+- **Studio** — launch with the correct IntelliJ + Java versions.
+- **Suite local config** — guided setup of a checkout's `localconfig` (the local edits
+  needed to run with `-Denv=local`), plus local backup/restore and an env-var check.
+- **Digital UI (Jutro)** — guided setup, local backup/restore, and ordered start of the
+  `agentquotehome` / `agentexperience` apps.
 
 Everything is plain `bash` plus a [Claude Code skill](.claude/skills/dbmanager/SKILL.md)
 that orchestrates the scripts conversationally.
+
+**Nothing sensitive is committed.** Suite/digital config (credentials, `.npmrc` tokens,
+internal URLs) lives only in your checkouts and in **gitignored** local backups
+(`localconfig/backups/`, `digital/backups/`). Setup uses guided in-place edits with
+placeholders, never committed copies.
 
 ## Layout
 
@@ -19,8 +31,14 @@ that orchestrates the scripts conversationally.
 | [`launch-config.sh`](launch-config.sh) | Editable IntelliJ / Java / bamboo-root paths |
 | [`drop_database.sh`](drop_database.sh) | Drop `pcdb`/`bcdb`/`cmdb` |
 | [`drop_database_exceptlist.sh`](drop_database_exceptlist.sh) | Drop all DBs except an allowlist |
+| [`localconfig-backup.sh`](localconfig-backup.sh) / [`localconfig-restore.sh`](localconfig-restore.sh) | Back up / restore a suite checkout's localconfig to gitignored `localconfig/backups/` |
+| [`localconfig-checkenv.sh`](localconfig-checkenv.sh) | Report which suite env vars are set vs missing (values masked) |
+| [`localconfig-lib.sh`](localconfig-lib.sh) / [`localconfig/manifest.txt`](localconfig/manifest.txt) | Shared helpers + the localconfig file list |
+| [`digital-backup.sh`](digital-backup.sh) / [`digital-restore.sh`](digital-restore.sh) | Back up / restore a Jutro app's config (`.env`, `.npmrc`, `config.json`) to gitignored `digital/backups/` |
+| [`digital-start.sh`](digital-start.sh) | Start the Jutro apps in order (agentquotehome → agentexperience) |
+| [`digital-lib.sh`](digital-lib.sh) / [`digital/manifest.txt`](digital/manifest.txt) | Shared helpers + the digital config file list |
 | [`tests/`](tests/) | Plain-bash tests for `launchstudio.sh` and `listbackups.sh` |
-| [`.claude/skills/dbmanager/`](.claude/skills/dbmanager/) | Claude Code skill that drives the above |
+| [`.claude/skills/dbmanager/`](.claude/skills/dbmanager/) | Claude Code skill (incl. `localconfig-setup.md`, `digital-setup.md` guided setup docs) that drives the above |
 
 Backups live in branch-named folders (e.g. `r10/`, `r39/`, `r43txho2adm/`) as
 `MM-DD_pcdb.sql`, `MM-DD_bcdb.sql`, `MM-DD_cmdb.sql`. The `.sql` files are gitignored.
@@ -78,6 +96,48 @@ DRY_RUN=1 ./launchstudio.sh gw43 policycenter   # preview env + command, no laun
 - `<center>` is `policycenter`, `billingcenter`, `contactmanager`, or `claimcenter`.
 - Defaults to IntelliJ Community + Java 21; `--ultimate` switches to the Ultimate IDE.
 
+### Suite local config (localconfig)
+
+A suite checkout needs local edits to tracked files to run with `-Denv=local`
+(`config.local.properties`, `database-config.xml`, `credentials.xml`, a few
+`plugin/registry/*.gwp`). These are the files you'd otherwise shelve/unshelve.
+
+```bash
+# Back up the current localconfig (incl. real credentials) -> gitignored local store
+./localconfig-backup.sh <root> <center>     # e.g. ./localconfig-backup.sh gw43 policycenter
+
+# Restore it back into the checkout
+./localconfig-restore.sh <root> <center>
+
+# Report which required env vars are set vs missing (values never printed)
+./localconfig-checkenv.sh
+```
+
+Selection is git-diff-based (only files modified from `HEAD` under
+[`localconfig/manifest.txt`](localconfig/manifest.txt)), so it ignores unmodified files and
+your code work. For a **fresh checkout with no backup**, the skill walks you through
+editing the base files via [`.claude/skills/dbmanager/localconfig-setup.md`](.claude/skills/dbmanager/localconfig-setup.md)
+(you paste your own keys; nothing committed).
+
+### Digital UI (Jutro apps)
+
+Two Jutro apps under `~/dev/bamboo/gw/` run the agent UI against a running local suite:
+`agentquotehome` (`:3001`) and `agentexperience` (`:3000`).
+
+```bash
+# Back up / restore a repo's config (.env, .npmrc, src/config/config.json) -> gitignored
+./digital-backup.sh <repo>      # repo = agentquotehome | agentexperience
+./digital-restore.sh <repo>
+
+# Start both in the correct order (PolicyCenter must be running first)
+./digital-start.sh
+```
+
+`digital-start.sh` starts **agentquotehome first**, waits for `:3001`, then
+**agentexperience** (`:3000`), backgrounded with logs in gitignored `digital/logs/`. Fresh
+setup + the exact two-window login procedure are in
+[`.claude/skills/dbmanager/digital-setup.md`](.claude/skills/dbmanager/digital-setup.md).
+
 ## Using the Claude Code skill
 
 With Claude Code open in this repo, just ask in plain language — the `dbmanager` skill
@@ -87,6 +147,8 @@ routes to the right script and confirms before any destructive restore:
 - "back up the gw suite to r43txho2adm"
 - "restore r10 from 03-16"
 - "launch policycenter studio for gw43"
+- "set up localconfig for a fresh gw43 policycenter checkout" / "back up my localconfig"
+- "set up the digital UI repos" / "start the digital UI"
 
 The skill defaults the Postgres user to `vincentwu` and the branch context to `gw43`
 unless told otherwise.
