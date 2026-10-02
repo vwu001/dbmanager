@@ -1,13 +1,41 @@
 ---
 name: dbmanager
-description: Use to back up, restore, and inspect the local Guidewire suite PostgreSQL databases (pcdb, bcdb, cmdb), and to launch Studio environments with the correct IntelliJ + Java versions. Trigger on "back up the gw suite", "list backups", "restore <folder> from <date>", "restore pcdb", "launch <center> studio for <root>", or any request to back up / restore the GW databases or open a Studio environment. Operates on this repo's scripts and backup folders.
+description: Use to set up, back up, restore, and inspect a local Guidewire suite dev environment: the PostgreSQL databases (pcdb, bcdb, cmdb), the per-checkout localconfig and digital UI (Jutro) config, and launching Studio with the correct IntelliJ + Java. Trigger on "set up my environment", "onboard me", "get this running on a new machine", "my suite/digital setup is broken", "check my prerequisites", "back up the gw suite", "list backups", "restore <folder> from <date>", "restore pcdb", "start digital", "launch <center> studio for <root>", or any request to set up, back up, restore, or start the GW suite, the digital apps, or a Studio environment. Operates on this repo's scripts and backup folders.
 ---
 
 # dbmanager
 
-Orchestrates the DB backup/restore scripts and Studio launcher in this repo. Run all
+Orchestrates the setup, backup/restore, and launch scripts in this repo. Run all
 commands from the repo root. The Postgres username defaults to `vincentwu` unless the
 user says otherwise. Default branch context is `gw43` when the user does not specify.
+
+## 0. Setting up a machine (start here for anything setup-shaped)
+
+If the user is onboarding, on a new machine, or something in their environment is not
+working, do NOT jump straight to the per-area docs. Run the preflight first:
+
+```
+./setup-doctor.sh
+```
+
+It checks PostgreSQL (tools, server, the three DBs), IntelliJ/Java at the
+`launch-config.sh` paths, suite checkouts, Node against each digital repo's `.nvmrc` pin,
+and required env vars — and prints a remediation hint per failure. It never prints the
+value of any credential or env var. Fix the `[FAIL]` lines, re-run until clean, then
+follow `onboarding.md` (in this skill directory), which sequences the whole build-out:
+clone → preflight → databases → localconfig → digital config → start → snapshot.
+
+### The teammate rule (applies everywhere below)
+
+This repo is **public** and deliberately holds **no credentials and no internal values**.
+When a step needs something the user does not have — registry auth token, integration
+keys, internal endpoint URLs, APD workset GUID, `DEPLOYMENT_ID`, the local test login —
+**stop and tell them to ask a teammate**, naming exactly what to ask for. Never invent a
+value, never let the user guess, and never commit one once they have it. The guided setup
+docs mark these spots **ASK A TEAMMATE**.
+
+Nothing blocks on the optional integration credentials: if the user does not need live
+integration servers, they mock those integrations and the suite still runs.
 
 ## 1. List backups
 
@@ -68,7 +96,8 @@ When the user has no backup yet, WALK THEM THROUGH editing the base files by fol
 `localconfig-setup.md` (in this skill directory) step by step. Apply the non-secret edits
 yourself; STOP and ask the user to paste their own keys where that doc marks
 `<YOUR_...>` / `REPLACE_ME` (credentials, DB password, integration URLs). Never invent or
-commit secret values.
+commit secret values. Where the user does not have a value, apply the teammate rule in
+§0 — the doc marks those spots **ASK A TEAMMATE**.
 
 ### Check required env vars
 `./localconfig-checkenv.sh` reports which suite env vars are set vs missing. It **never
@@ -106,7 +135,10 @@ has local edits to `.env`, `.npmrc` (registry auth token — secret), and
 
 ### Setup a fresh checkout (guided)
 Follow `digital-setup.md` (in this skill directory): apply the non-secret edits, STOP for
-the user to paste their `.npmrc` token and any internal/env URLs, then `npm install`.
+the user to paste their `.npmrc` token and any internal/env URLs, then `nvm use` +
+`npm install`. Both repos pin their Node version in `.nvmrc`; `setup-doctor.sh` flags a
+mismatch. Re-run `npm install` after every branch checkout or pull. Where the user lacks a
+value (registry token, internal endpoints, test login), apply the teammate rule in §0.
 
 ### Back up / restore (local only, never committed)
 - `./digital-backup.sh <repo>` → captures the modified `.env`/`.npmrc`/`config.json` into

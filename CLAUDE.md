@@ -49,6 +49,7 @@ no application code — only shell scripts, tests, and the skill.
 ```bash
 bash tests/test_launchstudio.sh
 bash tests/test_listbackups.sh
+bash tests/test_setup_doctor.sh
 ```
 
 ## Design docs

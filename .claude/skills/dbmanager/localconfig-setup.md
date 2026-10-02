@@ -5,6 +5,11 @@ with `-Denv=local`. Use this when there is **no backup** to restore yet. The age
 the non-secret edits and pauses for the user to paste their own keys; nothing here is
 committed to the dbmanager repo.
 
+**When the user does not have a value, tell them to ask a teammate.** Every item marked
+ASK A TEAMMATE below is deliberately absent from this repo (it is public) and cannot be
+derived — do not invent a placeholder and move on, and do not let the user guess. Stop,
+name exactly what they need to ask for, and wait.
+
 Centers: `policycenter` (pc / `pcdb`), `billingcenter` (bc / `bcdb`),
 `contactmanager` (cm / `cmdb`). Paths below are under
 `modules/configuration/` in the center checkout.
@@ -32,13 +37,20 @@ env list so they activate locally:
 - Give the StandAlone variants `env="h2mem"`.
 - In `RuntimePropertiesPlugin.gwp`, ensure the active entry is `env="local"`.
 
-Which `.gwp` files are affected differs per center (e.g. pc: `ContactSystemPlugin`,
-`IAddressBookAdapter`, `IBillingSummaryPlugin`, `IBillingSystemPlugin`,
-`RuntimePropertiesPlugin`). These are non-secret wiring edits — apply them directly.
+Which `.gwp` files are affected differs per center. PolicyCenter:
+`ContactSystemPlugin`, `IAddressBookAdapter`, `IBillingSummaryPlugin`,
+`IBillingSystemPlugin`, `RuntimePropertiesPlugin`. **The BillingCenter and ContactManager
+lists are not recorded here** — grep the center's `plugin/registry` for `env="cloud-dev"`
+to find the candidates, and if it is not obvious which ones matter, **ASK A TEAMMATE**
+rather than enabling plugins at random.
+
+These are non-secret wiring edits — apply them directly.
 
 ## 3. config.local.properties — APD workset + product URLs
 - Uncomment the `apd.service.devWorkset=<GUID>` line for the branch being worked on, and
-  comment out the others. **Ask the user** which workset GUID applies if unclear.
+  comment out the others. **Ask the user** which workset GUID applies. A new joiner has no
+  way to know this — if they are unsure, **ASK A TEAMMATE** which workset belongs to the
+  branch they are on. Picking the wrong one silently loads the wrong product model.
 - Confirm the local suite product URLs are present (the `localhost:8x80/..` entries).
 
 ## 4. credentials.xml — user's own keys (SECRETS)
@@ -47,6 +59,11 @@ Leave standard dev defaults (`ClientAppSuite`/`gw`) as-is. For real integrations
 entries that need real keys: `veriskvproperties.acc.password`,
 `lexisnexisproperties.*`, `gw.asmanage.ig.oauth.client*`. Mark any unfilled ones as
 `REPLACE_ME` so the user can find them.
+
+**ASK A TEAMMATE** for any of these the user does not already hold — they are vendor and
+internal integration credentials, not self-service. They are only needed to hit **live**
+integrations: if the user does not need live servers, leave them `REPLACE_ME`, mock those
+integrations, and the suite will still start.
 
 ## 5. RuntimeProperties.lexisnexis.xml — set manually
 This file is intentionally not managed by this skill. Set the lexisnexis RuntimeProperties
@@ -68,12 +85,14 @@ Names + tags live in `localconfig/required-env.txt`:
   keep the structure but swap the environment segment (e.g. the `qa3` in
   `...:dev:qa3:/deployment/...`) to the env being mirrored (`dev2`, etc.). The user
   checks/changes the actual value in their own shell; the skill never echoes it.
+  A new joiner has no base string to edit — **ASK A TEAMMATE** for the full
+  `DEPLOYMENT_ID` format and a current value to start from.
 - **Optional, `[opt]` / `[opt-secret]` — only to hit LIVE integration servers:** `JBR_DIR`,
   `IG_ARTIFACT_REPO_USERNAME`/`_PASSWORD`, `IG_EDGE_NODE_USERNAME`/`_PASSWORD`,
   `OKTA_CLIENT_ID`/`_SECRET`/`_AUTH_SERVER_URL`/`_SCOPE`. Not required to get the suite
   running — if the user doesn't need live integrations, they set those integrations to
-  **mock** instead. When needed, the user obtains and exports them; never store or commit
-  the values, and never echo them in chat.
+  **mock** instead. When needed, **ASK A TEAMMATE** for them; never store or commit the values, and never
+  echo them in chat.
 
 Also run the server in the local env via `-Denv=local` (gwb arg / Studio run config),
 which is a JVM property, not an exported env var.

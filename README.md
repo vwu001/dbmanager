@@ -53,6 +53,30 @@ Backups live in branch-named folders (e.g. `r10/`, `r39/`, `r43txho2adm/`) as
 
 Make the scripts executable once: `chmod +x *.sh`.
 
+Run `./setup-doctor.sh` to check all of the above at once (see below).
+
+## Setting up a new machine
+
+```bash
+./setup-doctor.sh            # preflight: what's missing and how to fix it
+./setup-doctor.sh gw43 gw35  # check specific suite roots
+```
+
+Checks PostgreSQL (tools, server, `pcdb`/`bcdb`/`cmdb`), IntelliJ + Java at the
+[`launch-config.sh`](launch-config.sh) paths, suite checkouts, Node against each digital
+repo's `.nvmrc` pin, and required env vars. Prints a remediation hint per failure and
+never prints the value of any credential or env var. Exits non-zero while anything
+required is missing.
+
+Then follow the ordered build-out in
+[`.claude/skills/dbmanager/onboarding.md`](.claude/skills/dbmanager/onboarding.md):
+clone → preflight → databases → localconfig → digital config → start → snapshot.
+
+This repo is public and holds **no credentials and no internal values**. The guided setup
+docs mark every such point **ASK A TEAMMATE** — the registry auth token, integration keys,
+internal endpoint URLs, the APD workset GUID, `DEPLOYMENT_ID`, and the local test login
+all have to come from someone on the team.
+
 ## Usage
 
 ### List backups
