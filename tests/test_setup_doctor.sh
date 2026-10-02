@@ -20,6 +20,8 @@ mkdir -p "$DIGITAL/agentquotehome" "$DIGITAL/agentexperience"
 for r in agentquotehome agentexperience; do
   mkdir -p "$DIGITAL/$r/node_modules"
   printf '20.11.0\n' > "$DIGITAL/$r/.nvmrc"
+  printf '{"name":"%s","engines":{"node":">= 20.11.0 < 21","npm":">=9"}}\n' "$r" \
+    > "$DIGITAL/$r/package.json"
 done
 IDEA_CE="$FIX/idea-ce/Contents"; mkdir -p "$IDEA_CE"
 JAVA="$FIX/jdk/Contents/Home"; mkdir -p "$JAVA/bin"
@@ -52,6 +54,7 @@ run() {  # run [extra env assignments via caller's DOCTOR_* exports]
          STUDIO_JAVA_HOME="$JAVA" \
          DOCTOR_ROOTS="${DOCTOR_ROOTS:-gw43}" \
          DOCTOR_SKIP_ENV="${DOCTOR_SKIP_ENV:-1}" \
+         DOCTOR_NODE_VERSION="${DOCTOR_NODE_VERSION:-20.11.0}" \
          bash "$REPO/setup-doctor.sh" "$@" 2>&1)"
   STATUS=$?
 }
@@ -67,16 +70,23 @@ assert_contains "$OUT" "agentquotehome" "reports on the digital repos"
 # Ultimate IDE is absent but optional -> must not fail the run
 assert_contains "$OUT" "warn" "absent optional Ultimate IDE is a warning, not a failure"
 
-assert_contains "$OUT" "node pin 20.11.0 satisfied" "matching .nvmrc pin passes"
+assert_contains "$OUT" "satisfies the version requirement" "node matching the pin passes"
 
-# --- node version does not match the repo pin -------------------------------
-printf '20.11.0\n' > "$DIGITAL/agentquotehome/.nvmrc"
-printf '22.13.1\n' > "$DIGITAL/agentexperience/.nvmrc"
-run
-assert_status "$STATUS" 1 "node not matching a repo's .nvmrc pin exits 1"
-assert_contains "$OUT" "pins node 22.13.1" "names the pinned version the repo wants"
-assert_contains "$OUT" "nvm use" "suggests nvm use to fix the pin mismatch"
-printf '20.11.0\n' > "$DIGITAL/agentexperience/.nvmrc"
+# --- node in the engines range but not the exact .nvmrc pin -> still OK ------
+DOCTOR_NODE_VERSION=20.19.4 run
+assert_status "$STATUS" 0 "node differing from .nvmrc but inside engines range exits 0"
+assert_contains "$OUT" "in range, so fine" "an in-range version is not reported as a problem"
+
+# --- node below the engines minimum -> fail ---------------------------------
+DOCTOR_NODE_VERSION=17.9.1 run
+assert_status "$STATUS" 1 "node below the engines minimum exits 1"
+assert_contains "$OUT" "below the required 20.11.0" "names the minimum the repo requires"
+assert_contains "$OUT" "nvm use" "suggests nvm use to fix an out-of-range node"
+
+# --- node at/above the exclusive maximum -> fail ----------------------------
+DOCTOR_NODE_VERSION=21.0.0 run
+assert_status "$STATUS" 1 "node at the exclusive maximum exits 1"
+assert_contains "$OUT" "unsupported 21" "names the unsupported ceiling"
 
 # --- missing suite checkout -------------------------------------------------
 mv "$BAMBOO/gw43/billingcenter" "$BAMBOO/gw43/.billingcenter-hidden"
@@ -122,5 +132,13 @@ esac
 
 # --- points at a teammate for things the repo cannot hold -------------------
 assert_contains "$OUT" "teammate" "directs the user to a teammate for unstorable values"
+
+# --- ver_cmp handles versions with missing components -----------------------
+# ("21" must equal "21.0.0", not sort below it — an exclusive "< 21" ceiling depends on it)
+eval "$(sed -n '/^ver_cmp()/,/^}/p' "$REPO/setup-doctor.sh")"
+assert_equals "$(ver_cmp 21.0.0 21)"      "0"  "ver_cmp: 21.0.0 equals 21"
+assert_equals "$(ver_cmp 17.9.1 20.11.0)" "-1" "ver_cmp: 17.9.1 is below 20.11.0"
+assert_equals "$(ver_cmp 20.19.4 20.11.0)" "1" "ver_cmp: 20.19.4 is above 20.11.0"
+assert_equals "$(ver_cmp 22.22.1 23)"     "-1" "ver_cmp: 22.22.1 is below 23"
 
 done_tests

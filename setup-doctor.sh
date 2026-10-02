@@ -110,13 +110,45 @@ done
 
 # --- 4. Node + digital repos ------------------------------------------------
 section "Digital UI"
-active_node=""
-if command -v node >/dev/null 2>&1; then
-  active_node="$(node -v 2>/dev/null | sed 's/^v//')"
-  ok "node $active_node active"
-else
-  bad "node not on PATH" "Install Node via nvm; each digital repo pins its version in .nvmrc."
-fi
+
+# Compare dotted versions, tolerating missing components ("21" == "21.0.0").
+# Echoes -1, 0 or 1 for a<b, a==b, a>b.
+ver_cmp() {  # <a> <b>
+  _va="$1"; _vb="$2"; _oifs="$IFS"; IFS=.
+  set -- $_va; a1="${1:-0}"; a2="${2:-0}"; a3="${3:-0}"
+  set -- $_vb; b1="${1:-0}"; b2="${2:-0}"; b3="${3:-0}"
+  IFS="$_oifs"
+  for pair in "$a1 $b1" "$a2 $b2" "$a3 $b3"; do
+    x="${pair%% *}"; y="${pair##* }"
+    case "$x$y" in ''|*[!0-9]*) continue ;; esac
+    [ "$x" -lt "$y" ] && { echo -1; return; }
+    [ "$x" -gt "$y" ] && { echo 1; return; }
+  done
+  echo 0
+}
+
+# The Node a human actually gets in that directory: their login shell may auto-switch on
+# .nvmrc, so an agent's non-interactive PATH is NOT a reliable sample.
+repo_node_version() {  # <dir>
+  if [ -n "${DOCTOR_NODE_VERSION:-}" ]; then printf '%s' "$DOCTOR_NODE_VERSION"; return; fi
+  v="$( cd "$1" 2>/dev/null && "${SHELL:-/bin/zsh}" -lic 'node -v' 2>/dev/null \
+        | tr -d '\r' | grep -E '^v[0-9]' | tail -1 | sed 's/^v//' )"
+  [ -z "$v" ] && v="$(node -v 2>/dev/null | sed 's/^v//')"
+  printf '%s' "$v"
+}
+
+# engines.node from package.json, e.g. ">= 22.13.1 < 23" -> "22.13.1 23"
+engines_range() {  # <dir>  -> "<min> <max_exclusive>" (either may be empty)
+  [ -f "$1/package.json" ] || return 0
+  raw="$(tr -d '\n' < "$1/package.json" \
+         | sed 's/.*"engines"[^{]*{//; s/}.*//' \
+         | sed 's/.*"node"[[:space:]]*:[[:space:]]*"//; s/".*//')"
+  [ -n "$raw" ] || return 0
+  min="$(printf '%s' "$raw" | sed -n 's/.*>=*[[:space:]]*\([0-9][0-9.]*\).*/\1/p')"
+  max="$(printf '%s' "$raw" | sed -n 's/.*[^<>]<[[:space:]]*\([0-9][0-9.]*\).*/\1/p')"
+  printf '%s %s' "$min" "$max"
+}
+
 command -v npm >/dev/null 2>&1 && ok "npm on PATH" \
   || bad "npm not on PATH" "Install Node (npm ships with it)."
 
@@ -127,14 +159,23 @@ for repo in $DOCTOR_DIGITAL_REPOS; do
     continue
   fi
 
-  # The repo pins its own Node version; honour that over any global guess.
-  want=""
-  [ -f "$d/.nvmrc" ] && want="$(tr -d ' \t\r\n' < "$d/.nvmrc")"
-  if [ -n "$want" ] && [ -n "$active_node" ] && [ "$want" != "$active_node" ]; then
-    bad "$repo pins node $want but $active_node is active" \
-        "cd $d && nvm use    (install it first if needed: nvm install $want)"
-  elif [ -n "$want" ]; then
-    ok "$repo node pin $want satisfied"
+  active="$(repo_node_version "$d")"
+  pin=""
+  [ -f "$d/.nvmrc" ] && pin="$(tr -d ' \t\r\n' < "$d/.nvmrc")"
+  set -- $(engines_range "$d"); emin="${1:-}"; emax="${2:-}"
+
+  if [ -z "$active" ]; then
+    bad "$repo: no node found" "Install Node via nvm; this repo pins ${pin:-a version} in .nvmrc."
+  elif [ -n "$emin" ] && [ "$(ver_cmp "$active" "$emin")" -lt 0 ]; then
+    bad "$repo: node $active is below the required $emin" \
+        "cd $d && nvm use    (install first if needed: nvm install ${pin:-$emin})"
+  elif [ -n "$emax" ] && [ "$(ver_cmp "$active" "$emax")" -ge 0 ]; then
+    bad "$repo: node $active is at or above the unsupported $emax" \
+        "cd $d && nvm use    (install first if needed: nvm install ${pin:-$emin})"
+  elif [ -n "$pin" ] && [ "$pin" != "$active" ]; then
+    ok "$repo: node $active satisfies engines (.nvmrc pins $pin — in range, so fine)"
+  else
+    ok "$repo: node $active satisfies the version requirement"
   fi
 
   if [ ! -d "$d/node_modules" ]; then
