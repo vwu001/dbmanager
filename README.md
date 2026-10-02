@@ -27,6 +27,7 @@ placeholders, never committed copies.
 | [`restoregwsuitebydate.sh`](restoregwsuitebydate.sh) | Drop/recreate and restore all three DBs from a folder/date |
 | [`restore.sh`](restore.sh) | Restore a single DB from a `.sql` file |
 | [`listbackups.sh`](listbackups.sh) | List available backup sets per branch folder |
+| [`setup-doctor.sh`](setup-doctor.sh) | Preflight a machine: database choice, PostgreSQL roles/extensions, IDE + Java, checkouts, Node pins, env vars |
 | [`launchstudio.sh`](launchstudio.sh) | Launch a Studio env with the right `IDEA_HOME` / `JAVA_HOME` |
 | [`launch-config.sh`](launch-config.sh) | Editable IntelliJ / Java / bamboo-root paths |
 | [`drop_database.sh`](drop_database.sh) | Drop `pcdb`/`bcdb`/`cmdb` |
@@ -37,16 +38,20 @@ placeholders, never committed copies.
 | [`digital-backup.sh`](digital-backup.sh) / [`digital-restore.sh`](digital-restore.sh) | Back up / restore a Jutro app's config (`.env`, `.npmrc`, `config.json`) to gitignored `digital/backups/` |
 | [`digital-start.sh`](digital-start.sh) | Start the Jutro apps in order (agentquotehome → agentexperience) |
 | [`digital-lib.sh`](digital-lib.sh) / [`digital/manifest.txt`](digital/manifest.txt) | Shared helpers + the digital config file list |
-| [`tests/`](tests/) | Plain-bash tests for `launchstudio.sh` and `listbackups.sh` |
-| [`.claude/skills/dbmanager/`](.claude/skills/dbmanager/) | Claude Code skill (incl. `localconfig-setup.md`, `digital-setup.md` guided setup docs) that drives the above |
+| [`tests/`](tests/) | Plain-bash tests for `launchstudio.sh`, `listbackups.sh`, `setup-doctor.sh` and the localconfig manifest |
+| [`.claude/skills/dbmanager/`](.claude/skills/dbmanager/) | Claude Code skill that drives the above, plus the guided docs: `onboarding.md` (ordered build-out), `localconfig-setup.md`, `studio-setup.md`, `digital-setup.md` |
 
 Backups live in branch-named folders (e.g. `r10/`, `r39/`, `r43txho2adm/`) as
 `MM-DD_pcdb.sql`, `MM-DD_bcdb.sql`, `MM-DD_cmdb.sql`. The `.sql` files are gitignored.
 
 ## Prerequisites
 
-- PostgreSQL CLI tools (`pg_dump`, `psql`, `dropdb`, `createdb`) on `PATH`, server running.
-- A Postgres role that can create/drop the databases (examples use `vincentwu`).
+- **If you run the suite on PostgreSQL** (the alternative is H2 — see "Setting up a new
+  machine"): CLI tools (`pg_dump`, `psql`, `dropdb`, `createdb`) on `PATH` and the server
+  running; a role that can create/drop the databases (examples use `vincentwu`); the
+  `pcuser`/`bcuser`/`cmuser` login roles the suite connects as, which must exist *before*
+  any restore; and the extensions the dumps create — `postgis` (a separate install),
+  `file_fdw`, `pg_stat_statements`, `pgcrypto`, `unaccent`.
 - IntelliJ IDEA installs and Amazon Corretto JDK at the paths in
   [`launch-config.sh`](launch-config.sh) (defaults: IntelliJ 2024.1.5 CE/UT, Corretto 21).
 - Guidewire checkouts under `~/dev/bamboo/<root>/<center>/` (e.g. `gw43/policycenter`).
@@ -69,6 +74,13 @@ connects as and the extensions the dumps create. Also checks IntelliJ + Java at 
 repo's `.nvmrc` pin, and required env vars. Prints a remediation hint per failure and
 never prints the value of any credential or env var. Exits non-zero while anything
 required is missing.
+
+Starting the suite is a Studio job for day-to-day work — the run configurations are
+gitignored in every center, so each developer builds their own. Per-center flags:
+`-Dgw.pc.env=local` (:8180), `-Dgw.bc.env=local` (:8580), `-Dgw.ab.env=local` (:8280 —
+ContactManager is **ab**, not cm). `./gwb runServer` from the center directory is the
+alternative. Details in
+[`studio-setup.md`](.claude/skills/dbmanager/studio-setup.md).
 
 Then follow the ordered build-out in
 [`.claude/skills/dbmanager/onboarding.md`](.claude/skills/dbmanager/onboarding.md):
@@ -126,9 +138,10 @@ DRY_RUN=1 ./launchstudio.sh gw43 policycenter   # preview env + command, no laun
 
 ### Suite local config (localconfig)
 
-A suite checkout needs local edits to tracked files to run with `-Denv=local`
+A suite checkout needs local edits to tracked files to run with `-Dgw.<xx>.env=local`
 (`config.local.properties`, `database-config.xml`, `credentials.xml`, a few
-`plugin/registry/*.gwp`). These are the files you'd otherwise shelve/unshelve.
+`plugin/registry/*.gwp`, and any integration `.gs` overrides). These are the files you'd
+otherwise shelve/unshelve.
 
 ```bash
 # Back up the current localconfig (incl. real credentials) -> gitignored local store
@@ -143,7 +156,10 @@ A suite checkout needs local edits to tracked files to run with `-Denv=local`
 
 Selection is git-diff-based (only files modified from `HEAD` under
 [`localconfig/manifest.txt`](localconfig/manifest.txt)), so it ignores unmodified files and
-your code work. For a **fresh checkout with no backup**, the skill walks you through
+generated output. Integration `.gs` overrides under
+`modules/configuration/gsrc/bamboo/integration` **are** captured — see
+[`localconfig-setup.md`](.claude/skills/dbmanager/localconfig-setup.md) §5 for how to make
+them; feature work in `.gs` files elsewhere is not. For a **fresh checkout with no backup**, the skill walks you through
 editing the base files via [`.claude/skills/dbmanager/localconfig-setup.md`](.claude/skills/dbmanager/localconfig-setup.md)
 (you paste your own keys; nothing committed).
 
@@ -185,8 +201,11 @@ unless told otherwise.
 ```bash
 bash tests/test_launchstudio.sh
 bash tests/test_listbackups.sh
+bash tests/test_setup_doctor.sh
+bash tests/test_localconfig.sh
 ```
-Both use temporary fixture directories — they never touch real databases or backups.
+All use temporary fixture directories and stubbed binaries — they never touch real
+databases, checkouts, or backups.
 
 ## Configuration
 
