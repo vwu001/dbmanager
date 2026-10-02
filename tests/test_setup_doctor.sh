@@ -14,7 +14,55 @@ BAMBOO="$FIX/bamboo"
 mkdir -p "$BAMBOO/gw43/policycenter" "$BAMBOO/gw43/billingcenter" "$BAMBOO/gw43/contactmanager"
 for c in policycenter billingcenter contactmanager; do
   printf '#!/bin/bash\n' > "$BAMBOO/gw43/$c/gwb"; chmod +x "$BAMBOO/gw43/$c/gwb"
+  mkdir -p "$BAMBOO/gw43/$c/modules/configuration/config"
 done
+
+# Write a database-config.xml whose ACTIVE (no env=) block is postgres or h2.
+# Always includes a commented-out block of the other kind, plus an env="h2mem" block,
+# so the parser is forced to ignore both.
+write_dbconfig() {  # <center_dir> <postgres|h2> <db> <user>
+  if [ "$2" = postgres ]; then
+    cat > "$1/modules/configuration/config/database-config.xml" <<XML
+<database-config>
+  <!-- H2 (demo only)
+  <database autoupgrade="full" dbtype="h2" name="D">
+    <dbcp-connection-pool jdbc-url="jdbc:h2:file:./tmp/x"/>
+  </database>
+  -->
+  <database autoupgrade="full" dbtype="h2" env="h2mem" name="D">
+    <dbcp-connection-pool jdbc-url="jdbc:h2:mem:/tmp/x"/>
+  </database>
+  <database
+    name="D"
+    autoupgrade="full"
+    dbtype="postgresql">
+    <dbcp-connection-pool
+      jdbc-url="jdbc:postgresql://localhost:5432/$3?user=$4&amp;password=x">
+    </dbcp-connection-pool>
+  </database>
+</database-config>
+XML
+  else
+    cat > "$1/modules/configuration/config/database-config.xml" <<XML
+<database-config>
+  <database autoupgrade="full" dbtype="h2" name="D">
+    <dbcp-connection-pool jdbc-url="jdbc:h2:file:./tmp/x"/>
+  </database>
+  <database autoupgrade="full" dbtype="h2" env="h2mem" name="D">
+    <dbcp-connection-pool jdbc-url="jdbc:h2:mem:/tmp/x"/>
+  </database>
+  <!-- PostgreSQL
+  <database name="D" autoupgrade="full" dbtype="postgresql">
+    <dbcp-connection-pool jdbc-url="jdbc:postgresql://localhost:5432/$3?user=$4&amp;password=x"/>
+  </database>
+  -->
+</database-config>
+XML
+  fi
+}
+write_dbconfig "$BAMBOO/gw43/policycenter"  postgres pcdb pcuser
+write_dbconfig "$BAMBOO/gw43/billingcenter" postgres bcdb bcuser
+write_dbconfig "$BAMBOO/gw43/contactmanager" postgres cmdb cmuser
 DIGITAL="$BAMBOO/gw"
 mkdir -p "$DIGITAL/agentquotehome" "$DIGITAL/agentexperience"
 for r in agentquotehome agentexperience; do
@@ -28,14 +76,21 @@ JAVA="$FIX/jdk/Contents/Home"; mkdir -p "$JAVA/bin"
 
 # Stub bin: psql/createdb/node/npm that behave like a healthy machine.
 BIN="$FIX/bin"; mkdir -p "$BIN"
-cat > "$BIN/psql" <<'PSQL'
+# Stub psql driven by files the test rewrites: DBS, ROLES, EXTS.
+printf 'pcdb bcdb cmdb postgres\n'               > "$FIX/DBS"
+printf 'vincentwu pcuser bcuser cmuser postgres\n' > "$FIX/ROLES"
+printf 'postgis file_fdw pg_stat_statements pgcrypto unaccent\n' > "$FIX/EXTS"
+cat > "$BIN/psql" <<PSQL
 #!/bin/bash
-# -l lists databases; anything else is a connectivity probe that succeeds.
-for a in "$@"; do
-  case "$a" in
-    -l|--list) printf 'pcdb\nbcdb\ncmdb\npostgres\n'; exit 0;;
-  esac
-done
+q=""
+for a in "\$@"; do case "\$prev" in -c|-tAc) q="\$a";; esac; prev="\$a"; done
+case "\$* " in
+  *-l\ *|*--list*) tr ' ' '\n' < "$FIX/DBS"; exit 0;;
+esac
+case "\$q" in
+  *pg_roles*)              tr ' ' '\n' < "$FIX/ROLES"; exit 0;;
+  *pg_available_extensions*|*pg_extension*) tr ' ' '\n' < "$FIX/EXTS"; exit 0;;
+esac
 exit 0
 PSQL
 printf '#!/bin/bash\nexit 0\n' > "$BIN/pg_dump"
@@ -94,6 +149,37 @@ run
 assert_status "$STATUS" 1 "missing suite checkout exits 1"
 assert_contains "$OUT" "billingcenter" "names the missing checkout"
 mv "$BAMBOO/gw43/.billingcenter-hidden" "$BAMBOO/gw43/billingcenter"
+
+# --- a center set to H2 skips the postgres-only checks ----------------------
+write_dbconfig "$BAMBOO/gw43/policycenter"   h2 pcdb pcuser
+write_dbconfig "$BAMBOO/gw43/billingcenter"  h2 bcdb bcuser
+write_dbconfig "$BAMBOO/gw43/contactmanager" h2 cmdb cmuser
+printf '\n' > "$FIX/DBS"; printf '\n' > "$FIX/ROLES"; printf '\n' > "$FIX/EXTS"
+run
+assert_status "$STATUS" 0 "all-H2 setup passes without any postgres databases"
+assert_contains "$OUT" "H2" "reports that the centers are on H2"
+# restore postgres fixtures
+printf 'pcdb bcdb cmdb postgres\n'                > "$FIX/DBS"
+printf 'vincentwu pcuser bcuser cmuser postgres\n' > "$FIX/ROLES"
+printf 'postgis file_fdw pg_stat_statements pgcrypto unaccent\n' > "$FIX/EXTS"
+write_dbconfig "$BAMBOO/gw43/policycenter"   postgres pcdb pcuser
+write_dbconfig "$BAMBOO/gw43/billingcenter"  postgres bcdb bcuser
+write_dbconfig "$BAMBOO/gw43/contactmanager" postgres cmdb cmuser
+
+# --- postgres path: the app login role must exist ---------------------------
+printf 'vincentwu bcuser cmuser postgres\n' > "$FIX/ROLES"
+run
+assert_status "$STATUS" 1 "missing app login role exits 1"
+assert_contains "$OUT" "pcuser" "names the missing app login role"
+assert_contains "$OUT" "CREATE ROLE" "suggests how to create the missing role"
+printf 'vincentwu pcuser bcuser cmuser postgres\n' > "$FIX/ROLES"
+
+# --- postgres path: required extensions must be available -------------------
+printf 'file_fdw pg_stat_statements pgcrypto unaccent\n' > "$FIX/EXTS"
+run
+assert_status "$STATUS" 1 "missing postgres extension exits 1"
+assert_contains "$OUT" "postgis" "names the missing extension"
+printf 'postgis file_fdw pg_stat_statements pgcrypto unaccent\n' > "$FIX/EXTS"
 
 # --- missing database -------------------------------------------------------
 cat > "$BIN/psql" <<'PSQL'

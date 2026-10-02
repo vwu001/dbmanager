@@ -19,6 +19,7 @@ DOCTOR_DBS="${DOCTOR_DBS:-pcdb bcdb cmdb}"
 DOCTOR_DIGITAL_REPOS="${DOCTOR_DIGITAL_REPOS:-agentquotehome agentexperience}"
 DOCTOR_DB_USER="${DOCTOR_DB_USER:-${USER:-vincentwu}}"
 DOCTOR_SKIP_ENV="${DOCTOR_SKIP_ENV:-0}"
+DOCTOR_PG_EXTENSIONS="${DOCTOR_PG_EXTENSIONS:-postgis file_fdw pg_stat_statements pgcrypto unaccent}"
 
 [ $# -gt 0 ] && DOCTOR_ROOTS="$*"
 
@@ -37,8 +38,60 @@ bad()  {  # bad <label> <hint>
 
 section() { printf '\n== %s ==\n' "$1"; }
 
+# --- helpers: which database the user chose, per center ---------------------
+# A center runs on whichever <database> element has NO env= attribute; the env="h2mem"
+# block is for gunit tests and the env="cloud-dev" one is for deployed environments, so
+# both must be ignored, as must every commented-out block.
+dbconfig_live() {  # <center_dir> -> config XML with comments stripped, newlines folded
+  f="$1/modules/configuration/config/database-config.xml"
+  [ -f "$f" ] || return 0
+  perl -0777 -pe 's/<!--.*?-->//gs' "$f" 2>/dev/null | tr '\n' ' '
+}
+
+active_dbtype() {  # <center_dir> -> postgresql | h2 | (empty)
+  dbconfig_live "$1" | grep -o '<database[^>]*>' | grep -v 'env=' \
+    | sed -n 's/.*dbtype="\([a-z0-9]*\)".*/\1/p' | head -1
+}
+
+active_pg_field() {  # <center_dir> <db|user>
+  u="$(dbconfig_live "$1" | grep -o 'jdbc:postgresql://[^"]*' | head -1)"
+  [ -n "$u" ] || return 0
+  case "$2" in
+    db)   printf '%s' "$u" | sed -n 's|.*://[^/]*/\([^?]*\).*|\1|p' ;;
+    user) printf '%s' "$u" | sed -n 's/.*[?&]user=\([^&"]*\).*/\1/p' ;;
+  esac
+}
+
+# Collect the postgres-backed centers up front; the PostgreSQL checks only apply to them.
+PG_CENTERS=""; PG_DBS=""; PG_ROLES=""; H2_CENTERS=""
+for root in $DOCTOR_ROOTS; do
+  for center in $DOCTOR_CENTERS; do
+    cdir="$BAMBOO_ROOT/$root/$center"
+    [ -d "$cdir" ] || continue
+    t="$(active_dbtype "$cdir")"
+    case "$t" in
+      postgresql)
+        PG_CENTERS="$PG_CENTERS $root/$center"
+        d="$(active_pg_field "$cdir" db)";   [ -n "$d" ] && PG_DBS="$PG_DBS $d"
+        u="$(active_pg_field "$cdir" user)"; [ -n "$u" ] && PG_ROLES="$PG_ROLES $u" ;;
+      h2) H2_CENTERS="$H2_CENTERS $root/$center" ;;
+    esac
+  done
+done
+
+section "Database choice (from each center's database-config.xml)"
+for c in $PG_CENTERS; do ok "$c -> PostgreSQL"; done
+for c in $H2_CENTERS; do ok "$c -> H2 (no PostgreSQL needed)"; done
+if [ -z "$PG_CENTERS$H2_CENTERS" ]; then
+  warn "no database-config.xml found in the checkouts — cannot tell H2 from PostgreSQL"
+fi
+
 # --- 1. PostgreSQL ----------------------------------------------------------
 section "PostgreSQL"
+if [ -z "$PG_CENTERS" ]; then
+  ok "skipped — no center is configured for PostgreSQL (H2 needs no server)"
+fi
+if [ -n "$PG_CENTERS" ]; then
 pg_tools_ok=1
 for t in psql pg_dump createdb dropdb; do
   if command -v "$t" >/dev/null 2>&1; then
@@ -62,14 +115,35 @@ fi
 
 if [ "$pg_up" -eq 1 ]; then
   dblist="$(psql -U "$DOCTOR_DB_USER" -l 2>/dev/null)"
-  for db in $DOCTOR_DBS; do
+  for db in $PG_DBS; do
     case "$dblist" in
       *"$db"*) ok "database $db exists" ;;
       *) bad "database $db missing" "createdb -U $DOCTOR_DB_USER $db   (then restore it: ./listbackups.sh to pick a set)" ;;
     esac
   done
+
+  # The suite connects as its own login role (pcuser/bcuser/cmuser), not as the role that
+  # owns the dumps. The dumps are full of "OWNER TO <role>", so these must exist BEFORE a
+  # restore, or it fails thousands of times over.
+  rolelist="$(psql -U "$DOCTOR_DB_USER" -d postgres -tAc 'SELECT rolname FROM pg_roles;' 2>/dev/null)"
+  for r in $PG_ROLES postgres; do
+    case " $(echo $rolelist) " in
+      *" $r "*) ok "login role $r exists" ;;
+      *) bad "login role $r missing" "psql -U $DOCTOR_DB_USER -d postgres -c \"CREATE ROLE $r LOGIN PASSWORD '<choose-one>';\"  (must exist before restoring a dump; ask a teammate if unsure what the suite expects)" ;;
+    esac
+  done
+
+  # The dumps CREATE EXTENSION these; postgis in particular is a separate install.
+  extlist="$(psql -U "$DOCTOR_DB_USER" -d postgres -tAc 'SELECT name FROM pg_available_extensions;' 2>/dev/null)"
+  for e in $DOCTOR_PG_EXTENSIONS; do
+    case " $(echo $extlist) " in
+      *" $e "*) ok "extension $e available" ;;
+      *) bad "extension $e not available" "The dumps CREATE EXTENSION $e and will fail without it. Install it (postgis ships separately: 'brew install postgis'; the rest come with the postgresql contrib package)." ;;
+    esac
+  done
 else
-  for db in $DOCTOR_DBS; do warn "database $db not checked (server unreachable)"; done
+  for db in $PG_DBS; do warn "database $db not checked (server unreachable)"; done
+fi
 fi
 
 # --- 2. Studio toolchain ----------------------------------------------------

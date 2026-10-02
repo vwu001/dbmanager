@@ -2,14 +2,20 @@
 #
 # Backup captures the tracked files under these paths that DIFFER from HEAD (i.e. your
 # local-run edits) via: git diff --name-only HEAD -- <pathspecs>.
-# This deliberately ignores unmodified files and your code work (.gs, generated all.js),
-# and picks up only the .gwp registry files you actually changed.
+# This deliberately ignores unmodified files and generated output (all.js), and picks up
+# only the .gwp registry files and integration .gs overrides you actually changed. Feature
+# work in .gs files OUTSIDE modules/configuration/gsrc/bamboo/integration is not captured.
 #
 # Lines starting with # and blank lines are ignored.
 modules/configuration/config/config.local.properties
 modules/configuration/config/database-config.xml
 modules/configuration/credentials.xml
 modules/configuration/config/plugin/registry
+
+# Integration service overrides (.gs) used to force a fixed response for local testing.
+# A glob pathspec, so only the .gs files you actually changed are captured -- sample data
+# and other non-code files under the integration tree are not.
+modules/configuration/gsrc/bamboo/integration/*.gs
 
 # NOTE: RuntimeProperties.lexisnexis.xml (under etc/bamboo/runtimeproperties/local-dev) is
 # intentionally NOT managed here. See SKILL.md section 5 — it is set manually.

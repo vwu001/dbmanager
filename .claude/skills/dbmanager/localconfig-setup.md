@@ -14,8 +14,28 @@ Centers: `policycenter` (pc / `pcdb`), `billingcenter` (bc / `bcdb`),
 `contactmanager` (cm / `cmdb`). Paths below are under
 `modules/configuration/` in the center checkout.
 
-## 1. database-config.xml — point at local PostgreSQL
-Comment out the H2 demo block, and enable a local PostgreSQL `<database>` block:
+## 1. database-config.xml — pick H2 or PostgreSQL
+
+Running with `-Dgw.<xx>.env=local`, the suite uses whichever `<database>` element has
+**no `env=` attribute**. Exactly one may be uncommented. Ask the user which they want.
+
+**Leave the `env="h2mem"` block alone** — that is in-memory H2 for gunit tests, not a way
+to run the server. Same for `env="cloud-dev"`, which is for deployed environments.
+
+### Option A — H2 (no database server)
+Uncomment the H2 block and comment out the PostgreSQL one:
+
+```xml
+<database autoupgrade="full" dbtype="h2" name="<Center>Database">
+  <dbcp-connection-pool jdbc-url="jdbc:h2:file:./tmp/<xx>;AUTO_SERVER=true;CACHE_SIZE=64000;"/>
+</database>
+```
+
+Nothing else to install. Data lives in a file under the center's `tmp/` and survives
+restarts, but it cannot be loaded from the suite dumps in this repo.
+
+### Option B — PostgreSQL
+Leave the PostgreSQL block uncommented and comment out H2:
 
 ```xml
 <database name="<Center>Database" autoupgrade="full" dbtype="postgresql">
@@ -25,9 +45,10 @@ Comment out the H2 demo block, and enable a local PostgreSQL `<database>` block:
 </database>
 ```
 
-- `<Center>Database` / `<DB>` / `<DBUSER>`: PolicyCenter→`pcdb`/`pcuser`,
-  BillingCenter→`bcdb`/`bcuser`, ContactManager→`cmdb`/`cmuser`.
-- **Ask the user** for `<YOUR_DB_PASSWORD>` (their local postgres password).
+- PolicyCenter→`pcdb`/`pcuser`, BillingCenter→`bcdb`/`bcuser`, ContactManager→`cmdb`/`cmuser`.
+- **Ask the user** for `<YOUR_DB_PASSWORD>` (their own local postgres password).
+- The `<DBUSER>` roles must exist in PostgreSQL before any restore — `./setup-doctor.sh`
+  checks this, along with the extensions the dumps need.
 
 ## 2. plugin/registry/*.gwp — enable the `local` env
 For the integration plugins that ship enabled only for `cloud-dev`, add `local` to the
@@ -65,11 +86,57 @@ internal integration credentials, not self-service. They are only needed to hit 
 integrations: if the user does not need live servers, leave them `REPLACE_ME`, mock those
 integrations, and the suite will still start.
 
-## 5. RuntimeProperties.lexisnexis.xml — set manually
+## 5. Overriding integration data for local testing
+
+A local run often needs a vendor call to return something specific — a particular score, a
+failure path, or simply *anything* when you have no credentials for that vendor. Reach for
+these in order; the first two are config, the third is real code.
+
+**a. Turn the plugin off, or point it at the mock** — `config/plugin/registry/*.gwp` (§2).
+Cleanest option: no code touched. Use it when you want the integration out of the way.
+
+**b. Repoint the endpoint** — the service URLs in `config.local.properties` (§3). Use it
+when you want a real call, but against a different environment.
+
+**c. Override the response in the integration service** — the `.gs` under
+`modules/configuration/gsrc/bamboo/integration/<vendor>/`. Use it when you need one
+specific *value* back. Two shapes:
+
+```gosu
+// (1) let the real call happen, then force one field before returning
+var delegator = new SomeServiceDelegate(_SERVICE_NAME, request)
+delegator.invokeService()
+//override testing
+//delegator.ResponseDTO.VendorResponse.<path>.<field> = <fixed value>
+return delegator.ResponseDTO
+
+// (2) skip the vendor entirely — for when you have no credentials at all
+//override testing
+//return buildCannedResponse()
+```
+
+Conventions that keep this from biting you:
+
+- **Mark every override with the same comment** (`//override testing` is the one in use).
+  Before any commit or handover, `grep -rn "override testing" modules/configuration/gsrc`
+  finds all of them. An unmarked override is indistinguishable from real work.
+- **Comment the original line out rather than deleting it**, so reverting is a comment
+  flip and the intended call path stays readable.
+- **Never commit these.** Keep them in the localconfig changelist (§8).
+
+These `.gs` overrides **are** captured by `./localconfig-backup.sh` and come back with
+`./localconfig-restore.sh` — but only under
+`modules/configuration/gsrc/bamboo/integration`. Feature work in `.gs` files elsewhere is
+deliberately not captured, so do not park real work in the integration tree.
+
+If what you actually need is a working vendor call rather than a fake one, that is keys,
+not code: **ASK A TEAMMATE** and fill in `credentials.xml` (§4).
+
+## 6. RuntimeProperties.lexisnexis.xml — set manually
 This file is intentionally not managed by this skill. Set the lexisnexis RuntimeProperties
 value to **delegate** (it defaults to `none`) for the user's environment.
 
-## 6. Environment variables
+## 7. Environment variables
 The suite needs some env vars at build/run time. Run the checker and report what's set vs
 missing — it **only reports set/missing and never prints values** (they stay masked):
 
@@ -97,9 +164,37 @@ Names + tags live in `localconfig/required-env.txt`:
 Also run the server in the local env via `-Denv=local` (gwb arg / Studio run config),
 which is a JVM property, not an exported env var.
 
-## 7. Run and snapshot
-- Start the server in the `local` env:
-  - cmdline: `./gwb runServer -Denv=local`
-  - Studio: add `-Dgw.<xx>.env=local` to the run configuration.
+## 8. Keep these edits in their own changelist
+
+All of the above are permanent local edits to tracked files — they must never be
+committed. Put them in a dedicated IntelliJ changelist (e.g. named `localconfig`) so they
+stay visibly separate from real work and are easy to shelve before a branch switch.
+
+What typically lives there, and what each is for:
+
+| File | Purpose | In `localconfig-backup.sh`? |
+|---|---|---|
+| `database-config.xml` | H2 vs PostgreSQL (§1) | yes |
+| `config.local.properties` | APD workset + local product URLs (§3) | yes |
+| `credentials.xml` | integration keys — **ask a teammate** (§4) | yes |
+| `*.gwp` under `config/plugin/registry` | which integration plugins are live locally (§2) | yes |
+| `RuntimeProperties.lexisnexis.xml` | lexisnexis delegate vs none (§5) | **no — set manually** |
+| Integration service `.gs` overrides under `gsrc/bamboo/integration` | forcing a fixed vendor response for local testing (§5) | yes |
+| Generated `all.js` | build output that shows as modified | **no** |
+
+The last two are deliberately outside the backup manifest, so note them: after a fresh
+checkout they do not come back with `./localconfig-restore.sh` and must be redone by hand.
+
+**Changing an integration locally** is one of three moves — see §5 for the full pattern.
+All three now survive a backup/restore cycle.
+
+**Changing credentials** is always `credentials.xml`, and the values always come from a
+person — **ASK A TEAMMATE** for the keys. Never invent them, never commit them.
+
+## 9. Run and snapshot
+- Start the server in the `local` env — see `studio-setup.md`. Studio is the recommended
+  path for daily work; `./gwb runServer` from the center directory is the alternative.
+  The env flag is `-Dgw.pc.env=local`, `-Dgw.bc.env=local`, `-Dgw.ab.env=local`
+  (ContactManager is **ab**, not cm).
 - Once it runs, snapshot the working setup so future checkouts are a one-step restore:
   `./localconfig-backup.sh <root> <center>` (writes to gitignored `localconfig/backups/`).

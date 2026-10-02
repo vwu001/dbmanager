@@ -23,7 +23,22 @@ It checks PostgreSQL (tools, server, the three DBs), IntelliJ/Java at the
 and required env vars — and prints a remediation hint per failure. It never prints the
 value of any credential or env var. Fix the `[FAIL]` lines, re-run until clean, then
 follow `onboarding.md` (in this skill directory), which sequences the whole build-out:
-clone → preflight → databases → localconfig → digital config → start → snapshot.
+clone → choose H2 or PostgreSQL → preflight → localconfig → start the suite → digital →
+snapshot.
+
+**Ask which database they want before anything else.** With `-Dgw.<xx>.env=local` the
+suite uses whichever `<database>` block in `database-config.xml` has no `env=` attribute:
+H2 (no server to install) or PostgreSQL (real restorable dumps, but needs the databases,
+the `pcuser`/`bcuser`/`cmuser` login roles, and the PostGIS/fdw/pgcrypto/unaccent
+extensions first). The `env="h2mem"` block is for gunit tests — never offer it as a way
+to run the server. `setup-doctor.sh` reads the choice per center and checks only what it
+needs.
+
+**Starting the suite is a Studio job.** Follow `studio-setup.md` — the run configurations
+are gitignored in every center, so each developer builds their own, and that is where
+`DEPLOYMENT_ID` and the env flag live: `-Dgw.pc.env=local`, `-Dgw.bc.env=local`, and
+`-Dgw.ab.env=local` for ContactManager (**ab**, not cm). `./gwb runServer` from the center
+directory is the alternative.
 
 ### The teammate rule (applies everywhere below)
 
@@ -98,6 +113,13 @@ yourself; STOP and ask the user to paste their own keys where that doc marks
 `<YOUR_...>` / `REPLACE_ME` (credentials, DB password, integration URLs). Never invent or
 commit secret values. Where the user does not have a value, apply the teammate rule in
 §0 — the doc marks those spots **ASK A TEAMMATE**.
+
+These edits are permanent local changes to tracked files. `localconfig-setup.md` §5 covers
+how to override integration data for local testing (plugin toggle → repoint endpoint →
+`.gs` response override, marked `//override testing`), and §8 covers keeping everything in
+a dedicated IntelliJ changelist. Integration `.gs` overrides under
+`gsrc/bamboo/integration` ARE backed up; the lexisnexis RuntimeProperties and generated
+`all.js` are not, and will not come back from a restore.
 
 ### Check required env vars
 `./localconfig-checkenv.sh` reports which suite env vars are set vs missing. It **never

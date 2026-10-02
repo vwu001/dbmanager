@@ -50,6 +50,7 @@ no application code — only shell scripts, tests, and the skill.
 bash tests/test_launchstudio.sh
 bash tests/test_listbackups.sh
 bash tests/test_setup_doctor.sh
+bash tests/test_localconfig.sh
 ```
 
 ## Design docs

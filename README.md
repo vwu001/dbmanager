@@ -62,7 +62,9 @@ Run `./setup-doctor.sh` to check all of the above at once (see below).
 ./setup-doctor.sh gw43 gw35  # check specific suite roots
 ```
 
-Checks PostgreSQL (tools, server, `pcdb`/`bcdb`/`cmdb`), IntelliJ + Java at the
+Reads each center's `database-config.xml` to see whether you chose H2 or PostgreSQL, and
+checks only what that choice needs — on PostgreSQL that includes the login roles the suite
+connects as and the extensions the dumps create. Also checks IntelliJ + Java at the
 [`launch-config.sh`](launch-config.sh) paths, suite checkouts, Node against each digital
 repo's `.nvmrc` pin, and required env vars. Prints a remediation hint per failure and
 never prints the value of any credential or env var. Exits non-zero while anything
@@ -70,7 +72,9 @@ required is missing.
 
 Then follow the ordered build-out in
 [`.claude/skills/dbmanager/onboarding.md`](.claude/skills/dbmanager/onboarding.md):
-clone → preflight → databases → localconfig → digital config → start → snapshot.
+clone → choose H2 or PostgreSQL → preflight → localconfig → start the suite in Studio →
+digital → snapshot. Studio run configurations are covered in
+[`studio-setup.md`](.claude/skills/dbmanager/studio-setup.md).
 
 This repo is public and holds **no credentials and no internal values**. The guided setup
 docs mark every such point **ASK A TEAMMATE** — the registry auth token, integration keys,

@@ -23,5 +23,8 @@ lc_pathspecs() {
 lc_modified_files() {  # <suite_dir>
   local suite="$1" specs
   specs="$(lc_pathspecs)"
-  ( cd "$suite" && git diff --name-only HEAD -- $specs 2>/dev/null )
+  # set -f: keep glob pathspecs (e.g. ".../integration/*.gs") intact. Without it the
+  # shell expands them against the working tree first, silently narrowing the pathspec
+  # whenever a matching file happens to sit in the literal directory.
+  ( cd "$suite" && set -f && git diff --name-only HEAD -- $specs 2>/dev/null )
 }
