@@ -98,7 +98,7 @@ for t in psql pg_dump createdb dropdb; do
     ok "$t on PATH"
   else
     pg_tools_ok=0
-    bad "$t not on PATH" "Install the PostgreSQL client tools (e.g. 'brew install postgresql@16') and reopen your shell."
+    bad "$t not on PATH" "Install the PostgreSQL client tools (e.g. 'brew install postgresql@15') and reopen your shell."
   fi
 done
 
@@ -109,11 +109,27 @@ if [ "$pg_tools_ok" -eq 1 ]; then
     pg_up=1
   else
     bad "PostgreSQL server not reachable as role '$DOCTOR_DB_USER'" \
-        "Start the server (e.g. 'brew services start postgresql@16') and confirm the role exists. Set DOCTOR_DB_USER=<role> if yours differs."
+        "Start the server (e.g. 'brew services start postgresql@15') and confirm the role exists. Set DOCTOR_DB_USER=<role> if yours differs."
   fi
 fi
 
 if [ "$pg_up" -eq 1 ]; then
+  # The suite runs SHOW lc_collate at startup; 16+ removed that parameter, so the server
+  # dies with "unrecognized configuration parameter". A restore onto 16+ still succeeds,
+  # which is why this has to be caught here rather than at startup.
+  pgver="$(psql -U "$DOCTOR_DB_USER" -d postgres -tAc 'SHOW server_version_num;' 2>/dev/null | tr -dc '0-9')"
+  if [ -n "$pgver" ]; then
+    pgmajor=$((pgver / 10000))
+    if [ "$pgmajor" -ge 16 ]; then
+      bad "PostgreSQL $pgmajor server is not supported by the suite" \
+          "The suite runs 'SHOW lc_collate' at startup, which PostgreSQL 16+ no longer has (no setting re-enables it). Run PostgreSQL 15 or older (in Postgres.app, add a 15 server; on Apple Silicon the v13 binaries need Rosetta)."
+    else
+      ok "PostgreSQL $pgmajor server (suite needs 15 or older)"
+    fi
+  else
+    warn "could not read the PostgreSQL server version"
+  fi
+
   dblist="$(psql -U "$DOCTOR_DB_USER" -l 2>/dev/null)"
   for db in $PG_DBS; do
     case "$dblist" in

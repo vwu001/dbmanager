@@ -26,7 +26,15 @@ no build system and no application code — only shell scripts, tests, and the s
   (`vincentwu`), but the suite connects as `pcuser`/`bcuser`/`cmuser`. Dumps carry
   `OWNER TO <role>`, so those roles must exist **before** a restore. Dumps also
   `CREATE EXTENSION` postgis/file_fdw/pg_stat_statements/pgcrypto/unaccent; postgis is a
-  separate install.
+  separate install (bundled with Postgres.app).
+- **PostgreSQL 15 or older only.** The suite runs `SHOW lc_collate` at startup, and that
+  read-only parameter does not exist on 16+ — the server fails with `unrecognized
+  configuration parameter "lc_collate"`. It cannot be re-enabled. Dumps still *restore*
+  onto 16/17; only suite startup fails. Never recommend 16 or 17. On Apple Silicon,
+  Postgres.app's v13 binaries are x86_64 and need Rosetta ("Bad CPU type in executable"
+  otherwise); keep `PATH` on the same `Versions/<N>/bin` as the running server.
+- Postgres.app's default `pg_hba.conf` is `trust` for local connections, so the password
+  in the `database-config.xml` jdbc-url is ignored locally — only the role must exist.
 - Startup is **via Studio** for daily work (a cold `./gwb runServer` is painfully slow).
   Run configs live in each center's gitignored `.idea/`, so every dev builds their own.
   Env flags: `-Dgw.pc.env=local` (:8180), `-Dgw.bc.env=local` (:8580),

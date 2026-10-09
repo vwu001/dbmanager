@@ -80,6 +80,7 @@ BIN="$FIX/bin"; mkdir -p "$BIN"
 printf 'pcdb bcdb cmdb postgres\n'               > "$FIX/DBS"
 printf 'vincentwu pcuser bcuser cmuser postgres\n' > "$FIX/ROLES"
 printf 'postgis file_fdw pg_stat_statements pgcrypto unaccent\n' > "$FIX/EXTS"
+printf '130020\n' > "$FIX/PGVER"
 cat > "$BIN/psql" <<PSQL
 #!/bin/bash
 q=""
@@ -90,6 +91,7 @@ esac
 case "\$q" in
   *pg_roles*)              tr ' ' '\n' < "$FIX/ROLES"; exit 0;;
   *pg_available_extensions*|*pg_extension*) tr ' ' '\n' < "$FIX/EXTS"; exit 0;;
+  *server_version_num*)    cat "$FIX/PGVER"; exit 0;;
 esac
 exit 0
 PSQL
@@ -180,6 +182,23 @@ run
 assert_status "$STATUS" 1 "missing postgres extension exits 1"
 assert_contains "$OUT" "postgis" "names the missing extension"
 printf 'postgis file_fdw pg_stat_statements pgcrypto unaccent\n' > "$FIX/EXTS"
+
+# --- postgres path: server must be 15 or older (suite runs SHOW lc_collate) ---
+run
+assert_contains "$OUT" "PostgreSQL 13 server" "a supported server version is reported ok"
+printf '150008\n' > "$FIX/PGVER"
+run
+assert_status "$STATUS" 0 "PostgreSQL 15 is still supported"
+printf '160008\n' > "$FIX/PGVER"
+run
+assert_status "$STATUS" 1 "PostgreSQL 16 exits 1"
+assert_contains "$OUT" "PostgreSQL 16 server" "names the unsupported major version"
+assert_contains "$OUT" "lc_collate" "explains why 16+ breaks the suite"
+assert_contains "$OUT" "15 or older" "says which versions to use instead"
+printf '170004\n' > "$FIX/PGVER"
+run
+assert_status "$STATUS" 1 "PostgreSQL 17 exits 1"
+printf '130020\n' > "$FIX/PGVER"
 
 # --- missing database -------------------------------------------------------
 cat > "$BIN/psql" <<'PSQL'

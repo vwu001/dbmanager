@@ -56,12 +56,21 @@ It reads each center's `database-config.xml` and reports which database you chos
 checks only what that choice needs. On H2 it skips PostgreSQL entirely. On PostgreSQL it
 additionally verifies the pieces a restore depends on:
 
+- the server version — 15 or older (see below);
 - the databases (`pcdb`, `bcdb`, `cmdb`);
 - the **login roles** the suite connects as — `pcuser`, `bcuser`, `cmuser`, plus
   `postgres`. These are *not* the role that owns your dumps. The dumps are full of
   `OWNER TO <role>`, so the roles must exist **before** you restore;
 - the **extensions** the dumps create — `postgis`, `file_fdw`, `pg_stat_statements`,
-  `pgcrypto`, `unaccent`. PostGIS is a separate install (`brew install postgis`).
+  `pgcrypto`, `unaccent`. PostGIS is a separate install (`brew install postgis`);
+  Postgres.app bundles it.
+
+**Use PostgreSQL 15 or older.** The suite runs `SHOW lc_collate` at startup, and 16+
+removed that parameter — the server fails with `unrecognized configuration parameter
+"lc_collate"`, and no setting re-enables it. Your dumps will restore onto 16/17 without
+complaint, so you only find out when the suite starts. In Postgres.app, pick 15 (or 13/14)
+when adding the server; on Apple Silicon the v13 binaries need Rosetta
+(`softwareupdate --install-rosetta`). Keep `PATH` on the matching `Versions/<N>/bin`.
 
 It also checks IntelliJ/Java, the checkouts, Node against each digital repo's pin, and
 required env vars. It never prints the value of any credential or env var. Fix every

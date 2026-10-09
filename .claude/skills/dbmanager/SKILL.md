@@ -34,6 +34,13 @@ extensions first). The `env="h2mem"` block is for gunit tests — never offer it
 to run the server. `setup-doctor.sh` reads the choice per center and checks only what it
 needs.
 
+**PostgreSQL must be 15 or older.** The suite runs `SHOW lc_collate` at startup; 16+
+dropped that parameter, so the server dies with `unrecognized configuration parameter
+"lc_collate"`. There is no setting to bring it back. A restore onto 16/17 succeeds and
+looks healthy — the failure only shows at suite startup — so check the server version
+(`SHOW server_version`) before restoring, not after. On Apple Silicon, Postgres.app's
+v13 binaries need Rosetta (`softwareupdate --install-rosetta`, the user's password).
+
 **Starting the suite is a Studio job.** Follow `studio-setup.md` — the run configurations
 are gitignored in every center, so each developer builds their own, and that is where
 `DEPLOYMENT_ID` and the env flag live: `-Dgw.pc.env=local`, `-Dgw.bc.env=local`, and

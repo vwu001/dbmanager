@@ -51,7 +51,8 @@ Backups live in branch-named folders (e.g. `r10/`, `r39/`, `r43txho2adm/`) as
   running; a role that can create/drop the databases (examples use `vincentwu`); the
   `pcuser`/`bcuser`/`cmuser` login roles the suite connects as, which must exist *before*
   any restore; and the extensions the dumps create — `postgis` (a separate install),
-  `file_fdw`, `pg_stat_statements`, `pgcrypto`, `unaccent`.
+  `file_fdw`, `pg_stat_statements`, `pgcrypto`, `unaccent`. **Use PostgreSQL 15 or
+  older:** the suite runs `SHOW lc_collate` at startup, which 16+ no longer supports.
 - IntelliJ IDEA installs and Amazon Corretto JDK at the paths in
   [`launch-config.sh`](launch-config.sh) (defaults: IntelliJ 2024.1.5 CE/UT, Corretto 21).
 - Guidewire checkouts under `~/dev/bamboo/<root>/<center>/` (e.g. `gw43/policycenter`).
